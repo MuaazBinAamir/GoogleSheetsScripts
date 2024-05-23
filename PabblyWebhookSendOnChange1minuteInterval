@@ -101,8 +101,25 @@ function help() {
   .setHeight(100);
   SpreadsheetApp.getUi().showModelessDialog(htmlOutput, 'Pabbly Webhooks Help');
 }
+function getTime() {
+  // Get the current time
+  var currentTime = new Date();
+  
+  // Format the current time in a readable format
+  var formattedTime = Utilities.formatDate(currentTime, Session.getScriptTimeZone(), "MMM dd, yyyy HH:mm:ss");
+  
+  return formattedTime;
 
+}
+// function onSchedule(){
+//   every10SecondsFor1minute();
+//   for(var i=0; i <5 ; i++){
+//       Utilities.sleep(10000);
+//       every10SecondsFor1minute();
+//   }
+// }
 function onSchedule() {
+  
   const start = Date.now();
   var ss = SpreadsheetApp.getActive();
   var sheetId = PropertiesService.getDocumentProperties().getProperty('sheetId');
@@ -133,55 +150,73 @@ function onSchedule() {
  
   ///// check differences (muaaz aamir)
   var rowEnd = parseInt(sheet.getLastRow(), 10);
-  var oldState = PropertiesService.getDocumentProperties().getProperty('lastState'); //Get Old Stored State
+  var oldState;
   var oldStateArr;
 
-  oldStateArr = getJArrayFromJsonString(oldState);
   
-  Logger.log("old state arr: "+oldStateArr);
+  
+  //Logger.log("old state arr: "+oldStateArr);
   var changedRows = [];
   if(oldStateArr==null) oldStateArr  = [];
   if (timeUp(start)) {return;}
   var headers = sheet.getRange(`A1:${end_column}1`).getDisplayValues()[0]; 
-  var values = sheet.getRange(`A${parseInt('2',10)}:${end_column+rowEnd}`).getDisplayValues();
-  for(var i = 0 ; i < values.length ; i++){ 
-    var oldRow = oldStateArr[i];
-    var valueRow = values[i];
+  var values;
+  oldState = PropertiesService.getDocumentProperties().getProperty('lastState'); //Get Old Stored State
+  oldStateArr = getJArrayFromJsonString(oldState);
+  for(var l = 0; l < 5 ; l++){
+    Logger.log("Run: "+l);
+    SpreadsheetApp.flush();
+     sheet = ss.getSheets().find(sh => sh.getSheetId() == sheetId);
+   setup = PropertiesService.getDocumentProperties().getProperty('setup');
+      values = sheet.getRange(`A2:${end_column+rowEnd}`).getDisplayValues();
+      
+      
+      Logger.log("values: "+values);
+      Logger.log("oldStateArr: "+oldStateArr);
+      for(var i = 0 ; i < values.length ; i++){ 
+        var oldRow = oldStateArr[i];
+        var valueRow = values[i];
+        
+        if(oldRow!=null && valueRow!=null){
+            for(var j = 0 ; j < values[i].length ; j++){
+              //Logger.log("Old Value: "+oldStateArr[i][j]);
+              //Logger.log("New Value: "+values[i][j]);
+                  if (oldStateArr[i][j] !== values[i][j]) { 
+                    //Logger.log("Condition passsed");
+                    changedRows.push(i);
+                  
+                    break;
+                  }
+                }
+        }else{
+          //Logger.log("inside else");
+          changedRows.push(i);
+        }
+        
+      }
+      Logger.log("Changed Array"+changedRows);
     
-    if(oldRow!=null && valueRow!=null){
-        for(var j = 0 ; j < values[i].length ; j++){
-          Logger.log("Old Value: "+oldStateArr[i][j]);
-           Logger.log("New Value: "+values[i][j]);
-              if (oldStateArr[i][j] !== values[i][j]) { 
-                Logger.log("Condition passsed");
-                changedRows.push(i);
-               
-                break;
-              }
-            }
-    }else{
-      Logger.log("inside else");
-      changedRows.push(i);
-    }
-    
-  }
-  Logger.log("Changed Array"+changedRows);
- 
-  for(var k = 0 ; k < changedRows.length; k++){
-    connectWebhook(
-      convertToJson(values[changedRows[k]],headers,ss.getName(),ss.getId(),sheet.getName(),sheetId,end_column,changedRows[k]+2),
-          webhook_url
-    )
+      for(var k = 0 ; k < changedRows.length; k++){
+        connectWebhook(
+          convertToJson(values[changedRows[k]],headers,ss.getName(),ss.getId(),sheet.getName(),sheetId,end_column,changedRows[k]+2),
+              webhook_url
+        )
+      }
+      
+      PropertiesService.getDocumentProperties().setProperty('lastState', getJsonStringFromArray(values));
+      changedRows = [];
+      oldStateArr = values;
+      values = null;
+      
+      
+      Logger.log("Saving new state");
+      //Logger.log(currentState);
+      
+      /////////////
+      Utilities.sleep(10000);
   }
   
-  var currentState = getJsonStringFromArray(values);
-  Logger.log("Saving new state");
-  Logger.log(currentState);
-  PropertiesService.getDocumentProperties().setProperty('lastState', currentState);
-  /////////////
-
   
-
 }
 
 function timeUp(start) {
